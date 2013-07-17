@@ -15,4 +15,18 @@
       $('#get-value-input').val(data)
     })
   })
+
+  var peer = new Peer('some-id', {
+    host: 'localhost',
+    port: 9000
+  });
+  peer.on('connection', function(conn) {
+    conn.on('data', function(data) {
+      console.log('Got data:', data);
+    });
+  });
+  var conn = peer.connect('some-id');
+  conn.on('open', function() {
+    conn.send('Hello world!');
+  });
 }).call(this)
