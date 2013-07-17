@@ -44,13 +44,6 @@
                 data: result
               })
               break
-            case 'return':
-              for (var i in self.callbacks) {
-                if ((self.callbacks[i].dest == data.orig) &&
-                  (self.callbacks[i].func == data.func)) {
-                  self.callbacks.success(data.data)
-                }
-              }
           }
         })
       })
@@ -61,10 +54,19 @@
         var conn = peer.connect(options.dest)
         conn.on('open', function() {
           conn.send({
+            type: 'rpc',
             func: options.func,
             args: options.args,
             orig: id
           })
+        })
+
+        conn.on('data', function(data) {
+          switch (data.type) {
+            case 'return':
+              options.success(data.data)
+              break
+          }
         })
       }
     }
