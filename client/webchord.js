@@ -86,52 +86,52 @@
 
       var rpc = new RPC(myPeerId, this)
 
-        function initFingerTable(destID) {
-          self.finger[0].node
-          rpc.invoke({
-            dest: destID,
-            func: 'findSuccessor',
-            args: [self.finger[0].start],
-            success: function(res) {
-              self.finger[0].node = self.successor = res
-              rpc.invoke({
-                dest: self.successor.id,
-                func: 'getPredecessor',
-                args: [],
-                success: function(res) {
-                  self.predecessor = res
-                  rpc.invoke({
-                    dest: self.successor.id,
-                    func: 'setPredecessor',
-                    args: [{
-                      id: self.id,
-                      hash: self.hash
-                    }],
-                    success: function(res) {
-                      (function fillFingerTable(i) {
-                        if ((finger[i + 1].start < finger[i].node.hash) &&
-                          (finger[i + 1].start >= self.hash)) {
-                          finger[i + 1].node = finger[i].node
-                          if (i < m) fillFingerTable(i + 1)
-                        } else {
-                          rpc.invoke({
-                            dest: destID,
-                            func: 'findSuccessor',
-                            args: [self.finger[i + 1].start],
-                            success: function(res) {
-                              self.finger[i + 1].node = res
-                              if (i < m) fillFingerTable(i + 1)
-                            }
-                          })
-                        }
-                      })(0)
-                    }
-                  })
-                }
-              })
-            }
-          })
-        }
+      function initFingerTable(destID) {
+        self.finger[0].node
+        rpc.invoke({
+          dest: destID,
+          func: 'findSuccessor',
+          args: [self.finger[0].start],
+          success: function(res) {
+            self.finger[0].node = self.successor = res
+            rpc.invoke({
+              dest: self.successor.id,
+              func: 'getPredecessor',
+              args: [],
+              success: function(res) {
+                self.predecessor = res
+                rpc.invoke({
+                  dest: self.successor.id,
+                  func: 'setPredecessor',
+                  args: [{
+                    id: self.id,
+                    hash: self.hash
+                  }],
+                  success: function(res) {
+                    (function fillFingerTable(i) {
+                      if ((finger[i + 1].start < finger[i].node.hash) &&
+                        (finger[i + 1].start >= self.hash)) {
+                        finger[i + 1].node = finger[i].node
+                        if (i < m) fillFingerTable(i + 1)
+                      } else {
+                        rpc.invoke({
+                          dest: destID,
+                          func: 'findSuccessor',
+                          args: [self.finger[i + 1].start],
+                          success: function(res) {
+                            self.finger[i + 1].node = res
+                            if (i < m) fillFingerTable(i + 1)
+                          }
+                        })
+                      }
+                    })(0)
+                  }
+                })
+              }
+            })
+          }
+        })
+      }
 
       $.get('/api/1/getPeers', function(peers) {
         for (var p in peers) {
@@ -142,12 +142,38 @@
       })
 
       this.put = function(key, value, ret) {
+        var hash = hash(key)
+        self.findSuccessor(hash, function(node)) {
+          rpc.invoke({
+            dest: node.id,
+            func: 'localPut',
+            args: [key, value],
+            success: ret
+          })
+        }
+
         localStorage.setItem(key, value)
         if (ret !== undefined) ret()
       }
 
       this.get = function(key, ret) {
-        ret(localStorage.getItem(key))
+        var hash = hash(key)
+        self.findSuccessor(hash, function(node)) {
+          rpc.invoke({
+            dest: node.id,
+            func: 'localGet',
+            args: [key],
+            success: ret
+          })
+        }
+      }
+
+      this.localGet = function(key) {
+        return localStorage.getItem(key)
+      }
+
+      this.localPut = function(key, value) {
+        localStorage.setItem(key, value)
       }
     }
 
