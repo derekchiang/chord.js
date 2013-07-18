@@ -137,12 +137,12 @@
           if (n.id == self.node.id) {
             // If it's self, just call it's own method
             self.closestPrecedingFinger(hash).then(function(res) {
-              findPredecessorLooper(res)
+              return findPredecessorLooper(res)
             })
           } else {
             rpc.invoke(n, 'closestPrecedingFinger', hash)
               .then(function(res) {
-              findPredecessorLooper(res)
+              return findPredecessorLooper(res)
             })
           }
         } else {
