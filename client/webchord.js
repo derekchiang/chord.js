@@ -152,6 +152,16 @@
       })(self.node)
     }
 
+    this.closestPrecedingFinger = function(hash) {
+      return Q.fcall(function() {
+        for (var i = m - 1; i >= 0; i--) {
+          var fingerHash = self.finger[i].node.hash
+          if ((fingerHash > self.node.hash) && (fingerHash < hash))
+            return slef.finger[i].node
+        }
+      })
+    }
+
     $.get('/api/1/getPeers', function(peers) {
       for (var p in peers) {
         rpc.invoke('initializeFingerTable', p, function(data) {
