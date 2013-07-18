@@ -36,41 +36,42 @@
       conn.on('data', function(data) {
         switch (data.type) {
           case 'rpc':
-            var args = data.args
-            args.push(function(result) {
+            chord[data.func].apply(chord, data.args).then(function(res) {
               conn.send({
                 type: 'return',
                 func: data.func,
-                orig: chord.id,
-                data: result
+                orig: chord.node,
+                data: res
               })
-            })
-            chord[data.func].apply(chord, data.args)
+            }).done()
             break
         }
       })
     })
 
-    this.invoke = function(options) {
-      self.callbacks.push(options)
+    this.invoke = function(node, func) {
+      var deferred = Q.defer()
+      var args = [].slice.call(arguments, 2)
 
-      var conn = peer.connect(options.dest)
+      var conn = peer.connect(node.id)
       conn.on('open', function() {
         conn.send({
           type: 'rpc',
-          func: options.func,
-          args: options.args,
-          orig: id
+          func: func,
+          args: args,
+          orig: node.id
         })
       })
 
       conn.on('data', function(data) {
         switch (data.type) {
           case 'return':
-            options.success(data.data)
+            deferred.resolve(data.data)
             break
         }
       })
+
+      return deferred.promise
     }
   }
 
@@ -87,75 +88,68 @@
       localStorage.setItem('peerId', myPeerId)
     }
 
+    this.node = {
+      id: myPeerId,
+      hash = hash(myPeerId)
+    }
+
     var rpc = new RPC(myPeerId, this);
 
     // Functions defined in the Chord paper
 
-    function initFingerTable(destID) {
-      self.finger[0].node
-      rpc.invoke({
-        dest: destID,
-        func: 'findSuccessor',
-        args: [self.finger[0].start],
-        success: function(res) {
-          self.finger[0].node = self.successor = res
-          rpc.invoke({
-            dest: self.successor.id,
-            func: 'getPredecessor',
-            args: [],
-            success: function(res) {
-              self.predecessor = res
-              rpc.invoke({
-                dest: self.successor.id,
-                func: 'setPredecessor',
-                args: [{
-                  id: self.id,
-                  hash: self.hash
-                }],
-                success: function(res) {
-                  (function fillFingerTable(i) {
-                    if ((finger[i + 1].start < finger[i].node.hash) &&
-                      (finger[i + 1].start >= self.hash)) {
-                      finger[i + 1].node = finger[i].node
-                      if (i < m) fillFingerTable(i + 1)
-                    } else {
-                      rpc.invoke({
-                        dest: destID,
-                        func: 'findSuccessor',
-                        args: [self.finger[i + 1].start],
-                        success: function(res) {
-                          self.finger[i + 1].node = res
-                          if (i < m) fillFingerTable(i + 1)
-                        }
-                      })
-                    }
-                  })(0)
-                }
-              })
-            }
-          })
+    function initFingerTable(peer) {
+      rpc.invoke(peer, 'findSuccessor', [self.finger[0].start])
+        .then(function(res) {
+        self.finger[0].node = self.successor = res
+        return rpc.invoke(self.successor, 'getPredecessor')
+      }).then(function(res) {
+        self.predecessor = res
+        return rpc.invoke(self.successor, 'setPredecessor', self.node)
+      }).then(function(res) {
+        for (var i = 0; i < (m-1); i++) {
+          if ((self.finger[i+1].start >= self.node.hash) &&
+            (self.finger[i+1].start < self.finger[i].node.hash)) {
+            self.finger[i+1].node = self.finger[i].node
+          } else {
+            rpc.invoke(peer, 'findSuccessor', self.finger[i+1].start)
+              .then(function(res) {
+              self.finger[i+1].node = res
+            })
+          }
         }
-      })
+      }).done()
     }
 
-    this.findSuccessor = function(hash, ret) {
-      // TODO: What happens if the hash is right at self.hash or self.successor.hash?
-      // TODO: What number should be the end of the loop?
-      for (var i = 0; i < (numBits - 1); i++) {
-        switch (true) {
-          case ((self.finger[i].node.hash < hash) &&
-            (self.finger[i].node.successor.hash > hash)):
-            ret(self.finger[i].node)
-          case ((self.finger[i].node.hash < hash) &&
-            (self.finger[i + 1].node.hash > hash)):
-            rpc.invoke({
-              dest: self.finger[i].node.id,
-              func: 'findSuccessor',
-              args: [hash],
-              success: ret
+    this.findSuccessor = function(hash) {
+      var deferred = Q.defer()
+      this.findPredecessor(hash).then(function(res) {
+        deferred.resolve(res.successor)
+      })
+      return deferred.promise
+    }
+
+    this.findPredecessor = function(hash) {
+      var n = self.node
+
+      return (function findPredecessorLooper(n) {
+        var deferred = Q.defer()
+        if ((hash <= n.hash) || (hash > n.successor.hash)) {
+          if (n.id == self.node.id) {
+            // If it's self, just call it's own method
+            self.closestPrecedingFinger(hash).then(function(res) {
+              findPredecessorLooper(res)
             })
+          } else {
+            rpc.invoke(n, 'closestPrecedingFinger', hash)
+              .then(function(res) {
+              findPredecessorLooper(res)
+            })
+          }
+        } else {
+          deferred.resolve(n)
         }
-      }
+        return deferred.promise
+      })(self.node)
     }
 
     $.get('/api/1/getPeers', function(peers) {
