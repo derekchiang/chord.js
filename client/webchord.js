@@ -97,6 +97,48 @@
 
     // Functions defined in the Chord paper
 
+    this.join = function(peer) {
+      return Q.fcall(function() {
+        self.predecessor = null
+        rpc.invoke(peer, 'findSuccessor', self.node)
+          .then(function(successor) {
+            self.successor = successor
+          })
+      })
+    }
+
+    this.stablize = function() {
+      return Q.fcall(function() {
+        rpc.invoke(self.successor, 'getPredecessor')
+          .then(function(predecessor) {
+            if ((predecessor.hash > self.node.hash) &&
+              (predecessor.hash < self.successor.hash)) {
+              self.successor = predecessor
+            }
+            rpc.invoke(self.successor, 'notify', self.node)
+              .done()
+          })
+      })
+    }
+
+    this.notify = function(peer) {
+      return Q.fcall(function() {
+        if ((self.predecessor === null) ||
+          ((peer.hash > self.predecessor.hash) &&
+            (peer.hash < self.node.hash)))
+          self.predecessor = peer
+      })
+    }
+
+    this.fixFingers = function() {
+      return Q.fcall(function() {
+        var randomInt = Math.floor(Math.random() * numBits)
+        self.findSuccessor(self.finger[i].start).then(function(successor) {
+          self.finger[i].node = successor
+        })
+      })
+    }
+
     this.findSuccessor = function(hash) {
       var deferred = Q.defer()
       this.findPredecessor(hash).then(function(res) {
