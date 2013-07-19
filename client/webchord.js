@@ -97,63 +97,6 @@
 
     // Functions defined in the Chord paper
 
-    this.join = function(peer) {
-      return Q.fcall(function() {
-        if (peer) {
-          self.initFingerTable(peer)
-          self.updateOthers()
-        } else {
-          for (var i = 0; i < m; i++) {
-            self.finger[i].node = self.node
-          }
-          self.predecessor = node
-        }
-      })
-    }
-
-    this.initFingerTable = function(peer) {
-      rpc.invoke(peer, 'findSuccessor', [self.finger[0].start])
-        .then(function(res) {
-          self.finger[0].node = self.successor = res
-          return rpc.invoke(self.successor, 'getPredecessor')
-        }).then(function(res) {
-          self.predecessor = res
-          return rpc.invoke(self.successor, 'setPredecessor', self.node)
-        }).then(function(res) {
-          for (var i = 0; i < (m - 1); i++) {
-            if ((self.finger[i + 1].start >= self.node.hash) &&
-              (self.finger[i + 1].start < self.finger[i].node.hash)) {
-              self.finger[i + 1].node = self.finger[i].node
-            } else {
-              rpc.invoke(peer, 'findSuccessor', self.finger[i + 1].start)
-                .then(function(res) {
-                  self.finger[i + 1].node = res
-                })
-            }
-          }
-        }).done()
-    }
-
-    this.updateOthers = function() {
-      return Q.fcall(function() {
-        for (var i = 0; i < m; i++) {
-          self.findPredecessor(self.node.hash - Math(2, i))
-            .then(function(p) {
-              rpc.invoke(p, 'updateFingerTable', self.node, i)
-                .done()
-            })
-        }
-      })
-    }
-
-    this.updateFingerTable = function(node, i) {
-      if ((node.hash >= self.node.hash) && (hash < self.finger[i].node)) {
-        self.finger[i].node = node
-        rpc.invoke(self.predecessor, 'updateFingerTable', node, i)
-          .done()
-      }
-    }
-
     this.findSuccessor = function(hash) {
       var deferred = Q.defer()
       this.findPredecessor(hash).then(function(res) {
