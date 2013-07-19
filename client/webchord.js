@@ -221,6 +221,12 @@
         localStorage.setItem(key, value)
       })
     }
+
+    // Stablization
+    setInterval(function(){
+      self.stablize()
+      self.fixFingers()
+    }, 1000)
   }
 
   window.Chord = Chord
