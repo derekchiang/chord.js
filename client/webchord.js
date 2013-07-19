@@ -59,7 +59,7 @@
           type: 'rpc',
           func: func,
           args: args,
-          orig: node.id
+          orig: node
         })
       })
 
@@ -80,7 +80,7 @@
   function Chord() {
     if (!(this instanceof Chord)) return new Chord()
 
-    var self = this;
+    var self = this
 
     var myPeerId = localStorage.getItem('peerId')
     if (myPeerId === null) {
@@ -93,31 +93,65 @@
       hash = hash(myPeerId)
     }
 
-    var rpc = new RPC(myPeerId, this);
+    var rpc = new RPC(myPeerId, this)
 
     // Functions defined in the Chord paper
 
-    function initFingerTable(peer) {
+    this.join = function(peer) {
+      return Q.fcall(function() {
+        if (peer) {
+          self.initFingerTable(peer)
+          self.updateOthers()
+        } else {
+          for (var i = 0; i < m; i++) {
+            self.finger[i].node = self.node
+          }
+          self.predecessor = node
+        }
+      })
+    }
+
+    this.initFingerTable = function(peer) {
       rpc.invoke(peer, 'findSuccessor', [self.finger[0].start])
         .then(function(res) {
-        self.finger[0].node = self.successor = res
-        return rpc.invoke(self.successor, 'getPredecessor')
-      }).then(function(res) {
-        self.predecessor = res
-        return rpc.invoke(self.successor, 'setPredecessor', self.node)
-      }).then(function(res) {
-        for (var i = 0; i < (m-1); i++) {
-          if ((self.finger[i+1].start >= self.node.hash) &&
-            (self.finger[i+1].start < self.finger[i].node.hash)) {
-            self.finger[i+1].node = self.finger[i].node
-          } else {
-            rpc.invoke(peer, 'findSuccessor', self.finger[i+1].start)
-              .then(function(res) {
-              self.finger[i+1].node = res
-            })
+          self.finger[0].node = self.successor = res
+          return rpc.invoke(self.successor, 'getPredecessor')
+        }).then(function(res) {
+          self.predecessor = res
+          return rpc.invoke(self.successor, 'setPredecessor', self.node)
+        }).then(function(res) {
+          for (var i = 0; i < (m - 1); i++) {
+            if ((self.finger[i + 1].start >= self.node.hash) &&
+              (self.finger[i + 1].start < self.finger[i].node.hash)) {
+              self.finger[i + 1].node = self.finger[i].node
+            } else {
+              rpc.invoke(peer, 'findSuccessor', self.finger[i + 1].start)
+                .then(function(res) {
+                  self.finger[i + 1].node = res
+                })
+            }
           }
+        }).done()
+    }
+
+    this.updateOthers = function() {
+      return Q.fcall(function() {
+        for (var i = 0; i < m; i++) {
+          self.findPredecessor(self.node.hash - Math(2, i))
+            .then(function(p) {
+              rpc.invoke(p, 'updateFingerTable', self.node, i)
+                .done()
+            })
         }
-      }).done()
+      })
+    }
+
+    this.updateFingerTable = function(node, i) {
+      if ((node.hash >= self.node.hash) && (hash < self.finger[i].node)) {
+        self.finger[i].node = node
+        rpc.invoke(self.predecessor, 'updateFingerTable', node, i)
+          .done()
+      }
     }
 
     this.findSuccessor = function(hash) {
@@ -142,8 +176,8 @@
           } else {
             rpc.invoke(n, 'closestPrecedingFinger', hash)
               .then(function(res) {
-              return findPredecessorLooper(res)
-            })
+                return findPredecessorLooper(res)
+              })
           }
         } else {
           deferred.resolve(n)
@@ -162,47 +196,45 @@
       })
     }
 
-    $.get('/api/1/getPeers', function(peers) {
-      for (var p in peers) {
-        rpc.invoke('initializeFingerTable', p, function(data) {
-
-        })
-      }
-    })
-
-    this.put = function(key, value, ret) {
-      var hash = hash(key)
-      self.findSuccessor(hash, function(node)) {
-        rpc.invoke({
-          dest: node.id,
-          func: 'localPut',
-          args: [key, value],
-          success: ret
-        })
-      }
-
-      localStorage.setItem(key, value)
-      if (ret !== undefined) ret()
+    this.put = function(key, value) {
+      return Q.fcall(function() {
+        self.findSuccessor(key).then(function(successor) {
+          return rpc.invoke(successor, 'localPut', key, value)
+        }).done()
+      })
     }
 
-    this.get = function(key, ret) {
+    // TODO: cache recently got values
+    this.get = function(key) {
+      var deferred = Q.defer()
       var hash = hash(key)
-      self.findSuccessor(hash, function(node)) {
-        rpc.invoke({
-          dest: node.id,
-          func: 'localGet',
-          args: [key],
-          success: ret
-        })
-      }
+      self.findSuccessor(key).then(function(successor) {
+        return rpc.invoke(successor, 'localGet', key)
+      }).then(function(value) {
+        deferred.resolve(value)
+      }, function(err) {
+        // log(err)
+        // Try again
+        setTimeout(function() {
+          this.get(key).then(function(value) {
+            deferred.resolve(value)
+          })
+        }, 1)
+      })
+
+      return deferred.promise
     }
 
     this.localGet = function(key) {
-      return localStorage.getItem(key)
+      return Q.fcall(function() {
+        return localStorage.getItem(key)
+      })
     }
 
     this.localPut = function(key, value) {
-      localStorage.setItem(key, value)
+      return Q.fcall(function() {
+        localStorage.setItem(key, value)
+      })
     }
   }
 
