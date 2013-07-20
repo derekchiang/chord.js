@@ -21,6 +21,10 @@
     return parseInt(CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex).substring(0, 13), 16)
   }
 
+  function simpleClone(obj) {
+    return JSON.parse(JSON.stringify(obj))
+  }
+
   // RPC implementation using peer.js
 
   function RPC(id, chord) {
@@ -77,23 +81,43 @@
 
   // Webchord implementation
 
-  function Chord() {
+  function Chord(myPeerId) {
     if (!(this instanceof Chord)) return new Chord()
 
+    var originId = 'the original id'
     var self = this
 
-    var myPeerId = localStorage.getItem('peerId')
-    if (myPeerId === null) {
-      myPeerId = generateRandomId()
-      localStorage.setItem('peerId', myPeerId)
-    }
+    var myPeerId = localStorage.getItem('peerId') || myPeerId ||
+      generateRandomId()
+
+    localStorage.setItem('peerId', myPeerId)
 
     this.node = {
       id: myPeerId,
       hash = hash(myPeerId)
     }
 
+    this.finger = new Array(numBits)
+
     var rpc = new RPC(myPeerId, this)
+
+    if (myPeerId === originId) {
+      initializeOriginalNode()
+    } else {
+      chord.join({
+        id: originId,
+        hash: hash(originId)
+      })
+    }
+
+    function initializeOriginalNode() {
+      for (var i = 0; i < numBits; i++) {
+        self.finger[i] = simpleClone(self.node)
+      }
+
+      self.successor = simpleClone(self.node)
+      self.predecessor = simpleClone(self.node)
+    }
 
     // Functions defined in the Chord paper
 
@@ -223,7 +247,7 @@
     }
 
     // Stablization
-    setInterval(function(){
+    setInterval(function() {
       self.stablize()
       self.fixFingers()
     }, 1000)
