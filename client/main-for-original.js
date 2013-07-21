@@ -1,7 +1,7 @@
 "use strict";
 
 (function() {
-  var chord = new Chord()
+  var chord = new Chord('the original id')
 
   $('#put-button').click(function() {
     var key = $('#put-key-input').val()
