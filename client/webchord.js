@@ -1,7 +1,6 @@
 "use strict"
 
-;
-(function() {
+;(function() {
   // Constants
   var numBits = 52;
   var max = 4503599627370496; // 2 to the power of 52
@@ -41,19 +40,65 @@
 
     var self = this
 
+
     var peer = new Peer(id, {
       host: 'localhost',
       port: 9000
     })
 
+    // Due to the limitations of PeerJS, we can't have multiple
+    // connections between two peers at the same time; therefore
+    // we need to have a connection pool to manage connections
+    // TODO: as the implementation currently stands, if you `get`
+    // a connection when it's still waiting to be opened, it will
+    // be replaced by a new connection and wait to be opened again.
+    // Potential source of bugs.
+    var connectionPool = new(function() {
+      var pool = {}
+
+      this.add = function(id, conn) {
+        pool[id] = conn
+      }
+
+      this.get = function(id) {
+        var deferred = Q.defer()
+        console.log('the id is ' + id)
+
+        if (pool[id] && pool[id].open) {
+          deferred.resolve(pool[id])
+        } else {
+          console.log('here!! ' + id)
+          var conn = peer.connect(id)
+          this.add(id, conn)
+          conn.on('open', function() {
+            console.log('openning!')
+            deferred.resolve(conn)
+          })
+        }
+
+        return deferred.promise
+      }
+
+      this.remove = function(id) {
+        pool[id].close()
+        delete pool[id]
+      }
+    })()
+
+    // TODO: think about how to deal with this connection...
+    // use connectionPool or not?
     // Get ready to accept RPC calls
     peer.on('connection', function(conn) {
       conn.on('data', function(data) {
+        console.log('receiving an RPC call: ' + data.func)
         switch (data.type) {
           case 'rpc':
             // Call the corresponding function
+            console.log('invoking function: ' + data.func)
+            console.log('with args: ' + JSON.stringify(data.args))
             chord[data.func].apply(chord, data.args).then(function(res) {
               // When a result is available, set it back
+              if (res) console.log('sending back data: ' + res.toString())
               conn.send({
                 type: 'return',
                 func: data.func,
@@ -77,27 +122,29 @@
       var args = [].slice.call(arguments, 2)
 
       // Initialize connection
-      var conn = peer.connect(node.id)
+      console.log('connecting to: ' + node.id.toString())
 
-      // Send the RPC call
-      conn.on('open', function() {
+      connectionPool.get(node.id).then(function(conn) {
+        console.log('sending an RPC call: ' + func + ' to: ' + node.id.toString())
         conn.send({
           type: 'rpc',
           func: func,
           args: args,
           orig: node
         })
-      })
 
-      // Wait for return value
-      conn.on('data', function(data) {
-        switch (data.type) {
-          case 'return':
-            deferred.resolve(data.data)
-            conn.close()
-            break
-        }
-      })
+        // Wait for return value
+        conn.on('data', function(data) {
+          console.log('receiving data of type: ' + data.type)
+          console.log('the data is ' + JSON.stringify(data.data))
+          switch (data.type) {
+            case 'return':
+              deferred.resolve(data.data)
+              connectionPool.remove(node.id)
+              break
+          }
+        })
+      }).done()
 
       return deferred.promise
     }
@@ -133,7 +180,8 @@
     }
 
     this.finger = new Array(numBits)
-    for (var i in this.finger) {
+    for (var i = 0; i < numBits; i++) {
+      this.finger[i] = {}
       this.finger[i].start = (this.node.hash + Math.pow(2, i)) % max
       this.finger[i].interval = Math.pow(2, i)
     }
@@ -149,7 +197,7 @@
         rpc.invoke(peer, 'findSuccessor', self.node.hash)
           .then(function(successor) {
             self.node.successor = successor
-          })
+          }).done()
       })
     }
 
@@ -163,7 +211,7 @@
             }
             rpc.invoke(self.node.successor, 'notify', self.node)
               .done()
-          })
+          }).done()
       })
     }
 
@@ -188,6 +236,7 @@
     this.findSuccessor = function(hash) {
       var deferred = Q.defer()
       self.findPredecessor(hash).then(function(res) {
+        console.log('resolving findSuccessor')
         deferred.resolve(res.successor)
       })
       return deferred.promise
@@ -196,35 +245,48 @@
     this.findPredecessor = function(hash) {
       var deferred = Q.defer()
 
-      ;
-      (function findPredecessorLooper(n) {
+      // TODO: this algorithm is slightly modified to avoid an infinite loop
+      // when there is only one node in the whole network; reconsider plz
+      var n = self.node
+      ;(function findPredecessorLooper() {
         if ((hash <= n.hash) || (hash > n.successor.hash)) {
           if (n.id == self.node.id) {
             // If it's self, just call it's own method
             self.closestPrecedingFinger(hash).then(function(res) {
-              findPredecessorLooper(res)
+              if (n.id === res.id)
+                deferred.resolve(n)
+              else {
+                n = res
+                findPredecessorLooper()
+              }
             })
           } else {
             rpc.invoke(n, 'closestPrecedingFinger', hash)
               .then(function(res) {
-                findPredecessorLooper(res)
-              })
+                if (n.id === res.id)
+                  deferred.resolve(n)
+                else {
+                  n = res
+                  findPredecessorLooper()
+                }
+              }).done()
           }
         } else {
           deferred.resolve(n)
         }
-      })(self.node)
+      })()
 
       return deferred.promise
     }
 
     this.closestPrecedingFinger = function(hash) {
       return Q.fcall(function() {
-        for (var i = m - 1; i >= 0; i--) {
+        for (var i = numBits - 1; i >= 0; i--) {
           var fingerHash = self.finger[i].node.hash
           if ((fingerHash > self.node.hash) && (fingerHash < hash))
             return self.finger[i].node
         }
+        return self.node
       })
     }
 
@@ -235,8 +297,11 @@
     }
 
     this.put = function(key, value) {
+      console.log('putting')
+      var hash = hashFunc(key)
       return Q.fcall(function() {
-        self.findSuccessor(key).then(function(successor) {
+        self.findSuccessor(hash).then(function(successor) {
+          console.log('localPutting')
           return rpc.invoke(successor, 'localPut', key, value)
         }).done()
       })
@@ -258,7 +323,7 @@
             deferred.resolve(value)
           })
         }, 1)
-      })
+      }).done()
 
       return deferred.promise
     }
@@ -280,8 +345,9 @@
     // For the original node only
 
     function initializeOriginalNode() {
+      console.log(self)
       for (var i = 0; i < numBits; i++) {
-        self.finger[i] = simpleClone(self.node)
+        self.finger[i].node = simpleClone(self.node)
       }
 
       self.node.successor = simpleClone(self.node)
@@ -298,7 +364,7 @@
       })
     }
 
-    joinInterval = setInterval(function() {
+    var joinInterval = setInterval(function() {
       // In theory, `join` should be called only once.  However, it's
       // possible that when the first `join` is called, the RPC client
       // has not been started yet, and therefore `join` will fail.
@@ -315,9 +381,9 @@
         setInterval(function() {
           self.stablize()
           self.fixFingers()
-        }, 1000)
+        }, 20000)
       }
-    }, 1000)
+    }, 20000)
   }
 
   window.Chord = Chord
