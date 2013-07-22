@@ -1,7 +1,6 @@
 "use strict"
 
-;
-(function() {
+;(function() {
   // Fancy and smart way to define classes
   // Details: https://github.com/javascript/augment
   Function.prototype.augment = function(body) {
@@ -23,38 +22,38 @@
   }(Function.prototype))
 
   // Constants
-  var numBits = 52;
-  var max = 4503599627370496; // 2 to the power of 52
+  var numBits = 52
+  var max = 4503599627370496 // 2 to the power of 52
 
   // Some utility functions
 
-  function isNull(obj) {
-    return obj === null
-  }
+    function isNull(obj) {
+      return obj === null
+    }
 
-  function isUndefined(obj) {
-    return typeof(obj) === 'undefined'
-  }
+    function isUndefined(obj) {
+      return typeof(obj) === 'undefined'
+    }
 
-  function generateRandomId() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
-      function(c) {
-        var r = Math.random() * 16 | 0,
-          v = c == 'x' ? r : (r & 0x3 | 0x8)
-          return v.toString(16)
-      })
-  }
+    function generateRandomId() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
+        function(c) {
+          var r = Math.random() * 16 | 0,
+            v = c == 'x' ? r : (r & 0x3 | 0x8)
+            return v.toString(16)
+        })
+    }
 
-  function hashFunc(data) {
-    // Get the first 13 digits of hex -- equivalent to getting a 52-bit binary
-    return parseInt(CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex).substring(0, 13), 16)
-  }
+    function hashFunc(data) {
+      // Get the first 13 digits of hex -- equivalent to getting a 52-bit binary
+      return parseInt(CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex).substring(0, 13), 16)
+    }
 
-  function simpleClone(obj) {
-    return JSON.parse(JSON.stringify(obj))
-  }
+    function simpleClone(obj) {
+      return JSON.parse(JSON.stringify(obj))
+    }
 
-  // RPC implementation using peer.js
+    // RPC implementation using peer.js
 
   var RPC = Object.augment(function() {
     this.constructor = function(id, chord) {
@@ -362,8 +361,8 @@
 
       // TODO: this algorithm is slightly modified to avoid an infinite loop
       // when there is only one node in the whole network; reconsider plz
-      var n = self.node;
-      (function findPredecessorLooper() {
+      var n = self.node
+      ;(function findPredecessorLooper() {
         if ((hash <= n.hash) || (hash > n.successor.hash)) {
           if (n.id == self.node.id) {
             // If it's self, just call it's own method
