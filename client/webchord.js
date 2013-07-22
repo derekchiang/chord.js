@@ -135,7 +135,10 @@
                 data: res,
                 signature: data.signature
               })
-              conn.close()
+              // TODO: figure out what's the best strategy for closing
+              // connections
+              // Comment out the following line for now
+              // conn.close()
             }).done()
             break
         }
@@ -170,20 +173,18 @@
           signature: signature
         })
 
-        // TODO: append a hash to every RPC so that you know which return value is for which RPC
-
         // Wait for return value
         conn.on('data', function(data) {
-          console.log('receiving data of type: ' + data.type)
-          console.log(data.func)
-          console.log('the data is ' + JSON.stringify(data.data))
-          switch (data.type) {
-            case 'return':
-              if (data.signature === signature) {
+          if (data.signature === signature) {
+            console.log('receiving data of type: ' + data.type)
+            console.log(data.func)
+            console.log('the data is ' + JSON.stringify(data.data))
+            switch (data.type) {
+              case 'return':
                 deferred.resolve(data.data)
-                self.connectionPool.remove(node.id)
-              }
-              break
+                // self.connectionPool.remove(node.id)
+                break
+            }
           }
         })
       }).done()
