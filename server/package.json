@@ -1,6 +1,29 @@
 {
-	"dependencies": {
-		"connect": "*",
-		"peer": "*"
-	}
+  "name": "peer",
+  "version": "0.2.0",
+  "description": "Peer-to-peer data in browsers",
+  "main": "lib/server.js",
+  "bin": { "peerjs": "./bin/peerjs" },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/peers/peerjs-server.git"
+  },
+  "author": "Michelle Bu, Eric Zhang",
+  "license": "MIT",
+  "dependencies": {
+    "restify": "~2.3.5",
+    "ws": "~0.4.25",
+    "optimist": "*"
+  },
+  "devDependencies": {
+    "expect.js": "*",
+    "sinon": "*",
+    "mocha": "*"
+  },
+  "engines": {
+    "node": ">=0.8"
+  },
+  "scripts": {
+    "test": "mocha test"
+  }
 }
