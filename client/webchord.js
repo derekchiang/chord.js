@@ -6,10 +6,10 @@
   function defineClass(ctor, methods) {
     for (var x in methods) {
       if (methods.hasOwnProperty(x)) {
-        ctor.prototype[x] = methods[x];
+        ctor.prototype[x] = methods[x]
       }
     }
-    return ctor;
+    return ctor
   }
 
   // Constants
@@ -232,8 +232,6 @@
     // Set up a RPC client that will be used later
     this.rpc = new RPC(myPeerId, this)
 
-    // Functions defined in the Chord paper
-
     // Initialization
 
     // For the original node only
@@ -287,7 +285,7 @@
       }
     }, 5000)
   }, {
-    // methods
+    // Functions defined in the Chord paper
     join: function(peer) {
       var self = this
       return Q.fcall(function() {
