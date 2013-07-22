@@ -132,8 +132,10 @@
                 type: 'return',
                 func: data.func,
                 orig: chord.node,
-                data: res
+                data: res,
+                signature: data.signature
               })
+              conn.close()
             }).done()
             break
         }
@@ -156,11 +158,16 @@
 
       this.connectionPool.get(node.id).then(function(conn) {
         console.log('sending an RPC call: ' + func + ' to: ' + node.id.toString())
+
+        // Used to identify this particular RPC
+        var signature = generateRandomId()
+
         conn.send({
           type: 'rpc',
           func: func,
           args: args,
-          orig: node
+          orig: node,
+          signature: signature
         })
 
         // TODO: append a hash to every RPC so that you know which return value is for which RPC
@@ -168,11 +175,14 @@
         // Wait for return value
         conn.on('data', function(data) {
           console.log('receiving data of type: ' + data.type)
+          console.log(data.func)
           console.log('the data is ' + JSON.stringify(data.data))
           switch (data.type) {
             case 'return':
-              deferred.resolve(data.data)
-              self.connectionPool.remove(node.id)
+              if (data.signature === signature) {
+                deferred.resolve(data.data)
+                self.connectionPool.remove(node.id)
+              }
               break
           }
         })
