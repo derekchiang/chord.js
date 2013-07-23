@@ -57,7 +57,7 @@ This also technically implies that only browsers using the same PeerJS server fo
 ## TODO
 
 1. Clean up the code.
-2. Add a duplication mechanism.
+2. Add a replication mechanism.
 3. Write tests.
 4. Work out the best way to manage connections.
 5. Benchmark.
