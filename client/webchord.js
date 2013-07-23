@@ -22,36 +22,36 @@
   }(Function.prototype))
 
   // Constants
-  var numBits = 52
-  var max = 4503599627370496 // 2 to the power of 52
+  const NUM_BITS = 52
+  const MAX = 4503599627370496 // 2 to the power of 52
 
   // Some utility functions
 
-    function isNull(obj) {
-      return obj === null
-    }
+  function isNull(obj) {
+    return obj === null
+  }
 
-    function isUndefined(obj) {
-      return typeof(obj) === 'undefined'
-    }
+  function isUndefined(obj) {
+    return typeof(obj) === 'undefined'
+  }
 
-    function generateRandomId() {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
-        function(c) {
-          var r = Math.random() * 16 | 0,
-            v = c == 'x' ? r : (r & 0x3 | 0x8)
-            return v.toString(16)
-        })
-    }
+  function generateRandomId() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
+      function(c) {
+        var r = Math.random() * 16 | 0,
+          v = c == 'x' ? r : (r & 0x3 | 0x8)
+          return v.toString(16)
+      })
+  }
 
-    function hashFunc(data) {
-      // Get the first 13 digits of hex -- equivalent to getting a 52-bit binary
-      return parseInt(CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex).substring(0, 13), 16)
-    }
+  function hashFunc(data) {
+    // Get the first 13 digits of hex -- equivalent to getting a 52-bit binary
+    return parseInt(CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex).substring(0, 13), 16)
+  }
 
-    function simpleClone(obj) {
-      return JSON.parse(JSON.stringify(obj))
-    }
+  function simpleClone(obj) {
+    return JSON.parse(JSON.stringify(obj))
+  }
 
     // RPC implementation using peer.js
 
@@ -84,22 +84,17 @@
 
         this.get = function(id) {
           var deferred = Q.defer()
-          console.log('the id is ' + id)
 
           if (pool[id]) {
-            console.log('BP1')
             var conn = pool[id]
-            console.log(conn.open)
             if (conn.open) {
               deferred.resolve(conn)
             } else {
-              console.log('should not be here')
               conn.on('open', function() {
                 deferred.resolve(conn)
               })
             }
           } else {
-            console.log('BP2')
             var conn = peer.connect(id)
             self.add(id, conn)
             conn.on('open', function() {
@@ -207,15 +202,15 @@
   // Webchord implementation
 
   window.Chord = Object.augment(function() {
+    // Define the id of the original node
+    const originId = 'the original id'
+
     this.constructor = function(myPeerId) {
       // Detect if the user is calling Chord without `new`
       if (!(this instanceof Chord)) return new Chord()
 
       // To avoid confusion
       var self = this
-
-      // Define the id of the original node
-      var originId = 'the original id'
 
       // If given a peer id, use it; otherwise generate one in random
       // TODO: in production, you might want to do:
@@ -234,10 +229,10 @@
         hash: hashFunc(myPeerId)
       }
 
-      this.finger = new Array(numBits)
-      for (var i = 0; i < numBits; i++) {
+      this.finger = new Array(NUM_BITS)
+      for (var i = 0; i < NUM_BITS; i++) {
         this.finger[i] = {}
-        this.finger[i].start = (this.node.hash + Math.pow(2, i)) % max
+        this.finger[i].start = (this.node.hash + Math.pow(2, i)) % MAX
         this.finger[i].interval = Math.pow(2, i)
       }
 
@@ -249,18 +244,19 @@
       // For the original node only
 
       function initializeOriginalNode() {
-        for (var i = 0; i < numBits; i++) {
+        for (var i = 0; i < NUM_BITS; i++) {
           self.finger[i].node = simpleClone(self.node)
         }
 
         self.node.successor = simpleClone(self.node)
-        self.node.predecessor = simpleClone(self.node)
+        // self.node.predecessor = simpleClone(self.node)
+        self.node.predecessor = null
       }
 
       function initializeNormalNode() {
         // Questionable design: should we initialize finger
         // table this way?
-        for (var i = 0; i < numBits; i++) {
+        for (var i = 0; i < NUM_BITS; i++) {
           self.finger[i].node = simpleClone(self.node)
         }
       }
@@ -293,6 +289,8 @@
           setInterval(function() {
             self.stablize()
             self.fixFingers()
+            console.log(self.node.successor)
+            console.log(self.node.predecessor)
           }, 5000)
         }
       }, 5000)
@@ -315,8 +313,8 @@
       return Q.fcall(function() {
         self.rpc.invoke(self.node.successor, 'getPredecessor')
           .then(function(predecessor) {
-            if ((predecessor.hash > self.node.hash) &&
-              (predecessor.hash < self.node.successor.hash)) {
+            if ((!isNull(predecessor)) && ((predecessor.hash > self.node.hash)
+              && (predecessor.hash < self.node.successor.hash))) {
               self.node.successor = predecessor
             }
             self.rpc.invoke(self.node.successor, 'notify', self.node)
@@ -330,15 +328,25 @@
       return Q.fcall(function() {
         if ((self.node.predecessor === null) ||
           ((peer.hash > self.node.predecessor.hash) &&
-            (peer.hash < self.node.hash)))
+            (peer.hash < self.node.hash))) {
           self.node.predecessor = peer
+
+          // When the original node starts itself it sets its
+          // successor to itself; but when another node joins,
+          // it should set its succcesor to that node.  From
+          // this point on, the system will work exactly as
+          // described in the Chord paper.
+          if (self.node.successor.id === self.node.id) {
+            self.node.successor = peer
+          }
+        }
       })
     }
 
     this.fixFingers = function() {
       var self = this
       return Q.fcall(function() {
-        var randomInt = Math.floor(Math.random() * numBits)
+        var randomInt = Math.floor(Math.random() * NUM_BITS)
         self.findSuccessor(self.finger[randomInt].start).then(function(successor) {
           self.finger[randomInt].node = successor
         })
@@ -349,7 +357,6 @@
       var self = this
       var deferred = Q.defer()
       self.findPredecessor(hash).then(function(res) {
-        console.log('resolving findSuccessor')
         deferred.resolve(res.successor)
       })
       return deferred.promise
@@ -361,8 +368,8 @@
 
       // TODO: this algorithm is slightly modified to avoid an infinite loop
       // when there is only one node in the whole network; reconsider plz
-      var n = self.node
-      ;(function findPredecessorLooper() {
+      var n = self.node;
+      (function findPredecessorLooper() {
         if ((hash <= n.hash) || (hash > n.successor.hash)) {
           if (n.id == self.node.id) {
             // If it's self, just call it's own method
@@ -396,7 +403,7 @@
     this.closestPrecedingFinger = function(hash) {
       var self = this
       return Q.fcall(function() {
-        for (var i = numBits - 1; i >= 0; i--) {
+        for (var i = NUM_BITS - 1; i >= 0; i--) {
           var fingerHash = self.finger[i].node.hash
           if ((fingerHash > self.node.hash) && (fingerHash < hash))
             return self.finger[i].node
@@ -414,11 +421,9 @@
 
     this.put = function(key, value) {
       var self = this
-      console.log('putting')
       var hash = hashFunc(key)
       return Q.fcall(function() {
         self.findSuccessor(hash).then(function(successor) {
-          console.log('localPutting')
           return self.rpc.invoke(successor, 'localPut', key, value)
         }).done()
       })
@@ -434,7 +439,6 @@
       }).then(function(value) {
         deferred.resolve(value)
       }, function(err) {
-        // log(err)
         // Try again
         setTimeout(function() {
           this.get(key).then(function(value) {
