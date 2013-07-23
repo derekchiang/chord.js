@@ -27,6 +27,11 @@
 
   // Some utility functions
 
+  var development = false
+  function log(obj) {
+    if (development) console.log(obj)
+  }
+
   function isNull(obj) {
     return obj === null
   }
@@ -52,7 +57,7 @@
   function simpleClone(obj) {
     return JSON.parse(JSON.stringify(obj))
   }
-
+ 
     // RPC implementation using peer.js
 
   var RPC = Object.augment(function() {
@@ -98,7 +103,7 @@
             var conn = peer.connect(id)
             self.add(id, conn)
             conn.on('open', function() {
-              console.log('openning!')
+              log('openning!')
               deferred.resolve(conn)
             })
 
@@ -122,17 +127,17 @@
       // use connectionPool or not?
       // Get ready to accept RPC calls
       peer.on('connection', function(conn) {
-        console.log('getting a connection')
+        log('getting a connection')
         conn.on('data', function(data) {
-          console.log('receiving an RPC call: ' + data.func)
+          log('receiving an RPC call: ' + data.func)
           switch (data.type) {
             case 'rpc':
               // Call the corresponding function
-              console.log('invoking function: ' + data.func)
-              console.log('with args: ' + JSON.stringify(data.args))
+              log('invoking function: ' + data.func)
+              log('with args: ' + JSON.stringify(data.args))
               chord[data.func].apply(chord, data.args).then(function(res) {
                 // When a result is available, set it back
-                if (res) console.log('sending back data: ' + res.toString())
+                if (res) log('sending back data: ' + res.toString())
                 conn.send({
                   type: 'return',
                   func: data.func,
@@ -163,10 +168,10 @@
       var args = [].slice.call(arguments, 2)
 
       // Initialize connection
-      console.log('connecting to: ' + node.id.toString())
+      log('connecting to: ' + node.id.toString())
 
       this.connectionPool.get(node.id).then(function(conn) {
-        console.log('sending an RPC call: ' + func + ' to: ' + node.id.toString())
+        log('sending an RPC call: ' + func + ' to: ' + node.id.toString())
 
         // Used to identify this particular RPC
         var signature = generateRandomId()
@@ -182,9 +187,9 @@
         // Wait for return value
         conn.on('data', function(data) {
           if (data.signature === signature) {
-            console.log('receiving data of type: ' + data.type)
-            console.log(data.func)
-            console.log('the data is ' + JSON.stringify(data.data))
+            log('receiving data of type: ' + data.type)
+            log(data.func)
+            log('the data is ' + JSON.stringify(data.data))
             switch (data.type) {
               case 'return':
                 deferred.resolve(data.data)
@@ -289,8 +294,8 @@
           setInterval(function() {
             self.stablize()
             self.fixFingers()
-            console.log(self.node.successor)
-            console.log(self.node.predecessor)
+            log(self.node.successor)
+            log(self.node.predecessor)
           }, 5000)
         }
       }, 5000)
