@@ -18,7 +18,7 @@ chord.get('key').then(function(value) {
 })
 ```
 
-And the beauty of it?  All browsers can `get` the values that any browser `put`, **all without a centralized database**.  Indeed, all key-value pairs are spread across browsers.
+And the beauty of it?  All browsers can `get` the values that any browser `put`, **all without a centralized database**.  Indeed, all key-value pairs are spread across browsers.  And make no mistake: all data are transferred directly between browsers.
 
 What you can do with `chord.js` is limited only by your imagination.  [PeerCDN](https://peercdn.com/) could be implemented on top of it.  Browser games could be implemented using it, without needing any databases.  And so forth.
 
@@ -45,6 +45,10 @@ To run it on a single machine:
 9. Use the UI to do get/put values.
 
 To run it on multiple machines is basically the same.  You can figure this out.
+
+## FAQ
+
+1. What do I need to run the peer js server?
 
 ## TODO
 
