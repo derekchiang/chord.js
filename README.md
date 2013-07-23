@@ -48,7 +48,11 @@ To run it on multiple machines is basically the same.  You can figure this out.
 
 ## FAQ
 
-1. What do I need to run the peer js server?
+1. Why do I need to run the PeerJS server?
+
+The PeerJS server is used for [handshake](https://en.wikipedia.org/wiki/Handshaking) only.  Once a connection is established between two browsers, they will send data to each other directly.  Checkout [PeerJS](http://peerjs.com/) for details.
+
+This also technically implies that only browsers using the same PeerJS server for handshakes can talk to each other.
 
 ## TODO
 
