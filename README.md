@@ -30,7 +30,7 @@ It's working already, but there are still a lot to be done.  See the TODO list f
 
 ## Run the sample app
 
-You will need Firefox 22+ or Chrome 28+.  IE 11+ will most likely work, although it hasn't been tested against.  Not sure about Safari and Opera.
+You will need Firefox 22+ or Chrome 26+.  IE 11+ will most likely work, although it hasn't been tested against.  Not sure about Safari and Opera.
 
 To run it on a single machine:
 
@@ -48,7 +48,7 @@ To run it on multiple machines is basically the same.  You can figure this out.
 
 ## FAQ
 
-1. Why do I need to run the PeerJS server?
+* Why do I need to run the PeerJS server?
 
 The PeerJS server is used for [handshake](https://en.wikipedia.org/wiki/Handshaking) only.  Once a connection is established between two browsers, they will send data to each other directly.  Checkout [PeerJS](http://peerjs.com/) for details.
 
@@ -56,12 +56,13 @@ This also technically implies that only browsers using the same PeerJS server fo
 
 ## TODO
 
-1. Clean up the code.
-2. Add a replication mechanism.
-3. Write tests.
-4. Work out the best way to manage connections.
-5. Benchmark.
-6. Optimize the startup process.
+* Clean up the code.
+* Add a replication mechanism.
+* Write tests.
+* Work out the best way to manage connections.
+* Benchmark.
+* Optimize the startup process.
+* Hash K-V pairs, for security reasons.
 
 ## License
 
