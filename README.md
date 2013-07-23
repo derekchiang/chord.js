@@ -30,7 +30,7 @@ It's working already, but there are still a lot to be done.  See the TODO list f
 
 ## Run the sample app
 
-You will need Firefox 22+ or Chrome 28+.  IE 11+ will most likely work, although it hasn't been tested against.
+You will need Firefox 22+ or Chrome 28+.  IE 11+ will most likely work, although it hasn't been tested against.  Not sure about Safari and Opera.
 
 To run it on a single machine:
 
