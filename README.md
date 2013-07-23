@@ -42,7 +42,7 @@ To run it on a single machine:
 6. Open a private browser window and point it to `localhost:8000/index-for-original.html`
 7. Open any number of private browser windows and point them to `localhost:8000`
 8. Wait for about 10 seconds for the nodes to initialize
-9. Use the UI to do get/put values.
+9. Use the UI to put/get values.
 
 To run it on multiple machines is basically the same.  You can figure this out.
 
