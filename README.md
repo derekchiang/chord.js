@@ -54,6 +54,10 @@ The PeerJS server is used for [handshake](https://en.wikipedia.org/wiki/Handshak
 
 This also technically implies that only browsers using the same PeerJS server for handshakes can talk to each other.
 
+* How many peers (browsers) does chord.js support?
+
+`chord.js` is an implementation of the Chord algorithm, which has a provable `O(log n)` runtime performance.
+
 ## TODO
 
 * Clean up the code.
@@ -63,6 +67,7 @@ This also technically implies that only browsers using the same PeerJS server fo
 * Benchmark.
 * Optimize the startup process.
 * Hash K-V pairs, for security reasons.
+* Figure out the right rate to fix finger tables.
 
 ## License
 

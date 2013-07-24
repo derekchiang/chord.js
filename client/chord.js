@@ -22,11 +22,15 @@
   }(Function.prototype))
 
   // Constants
-  const NUM_BITS = 52
-  const MAX = 4503599627370496 // 2 to the power of 52
+  var NUM_BITS = 52
+  var MAX = 4503599627370496 // 2 to the power of 52
+  var REPLICATION_FACTOR = 10
+
+  // Error messages
+  var CANNOT_CONNECT_TO_PEER = 'Cannot connect to peer'
 
   // Some utility functions
-  var development = false
+  var development = true
   function log(obj) {
     if (development) console.log(obj)
   }
@@ -101,6 +105,7 @@
           } else {
             var conn = peer.connect(id)
             self.add(id, conn)
+            deferred.reject(new Error(CANNOT_CONNECT_TO_PEER))
             conn.on('open', function() {
               log('openning!')
               deferred.resolve(conn)
@@ -197,6 +202,10 @@
             }
           }
         })
+      }, function(err) {
+        if (err.message === CANNOT_CONNECT_TO_PEER) {
+          deferred.reject(err)
+        }
       }).done()
 
       return deferred.promise
@@ -207,7 +216,7 @@
 
   window.Chord = Object.augment(function() {
     // Define the id of the original node
-    const originId = 'the original id'
+    var originId = 'the original id'
 
     this.constructor = function(myPeerId) {
       // Detect if the user is calling Chord without `new`
@@ -240,6 +249,8 @@
         this.finger[i].interval = Math.pow(2, i)
       }
 
+      this.successorList = new Array(REPLICATION_FACTOR)
+
       // Set up a RPC client that will be used later
       this.rpc = new RPC(myPeerId, this)
 
@@ -252,7 +263,7 @@
           self.finger[i].node = simpleClone(self.node)
         }
 
-        self.node.successor = simpleClone(self.node)
+        self.node.successor = self.successorList[0] = simpleClone(self.node)
         // self.node.predecessor = simpleClone(self.node)
         self.node.predecessor = null
       }
@@ -295,6 +306,7 @@
             self.fixFingers()
             log(self.node.successor)
             log(self.node.predecessor)
+            log(self.successorList)
           }, 5000)
         }
       }, 5000)
@@ -307,7 +319,18 @@
         self.node.predecessor = null
         self.rpc.invoke(peer, 'findSuccessor', self.node.hash)
           .then(function(successor) {
-            self.node.successor = successor
+            self.node.successor = self.successorList[0] = successor
+          }, function(err) {
+            if (err.message === CANNOT_CONNECT_TO_PEER) {
+              // Try again
+              // TODO: think about if trying again is the best strategy.
+              // What if the peer is actually down and won't ever recover?
+              setTimeout(function() {
+                self.join(peer)
+              }, 1)
+            } else {
+              throw err
+            }
           }).done()
       })
     }
@@ -319,10 +342,39 @@
           .then(function(predecessor) {
             if ((!isNull(predecessor)) && ((predecessor.hash > self.node.hash)
               && (predecessor.hash < self.node.successor.hash))) {
-              self.node.successor = predecessor
+              self.node.successor = self.successorList[0] = predecessor
             }
             self.rpc.invoke(self.node.successor, 'notify', self.node)
               .done()
+            // Update successor list
+            var i = 0
+            ;(function updateSuccessorList(successor) {
+              self.rpc.invoke(successor, 'findSuccessor',
+                              ((successor.hash + 1) % MAX))
+                .then(function(ss) {
+                  self.successorList[++i] = ss
+                  if (i >= REPLICATION_FACTOR) {
+                    return
+                  } else {
+                    updateSuccessorList(ss)
+                  }
+                }, function(err) {
+                  if (err.message === CANNOT_CONNECT_TO_PEER) {
+                    // Try again.  Assuming the successor has stablized,
+                    // it should be able to find a live successor of the
+                    // given hash
+                    setTimeout(function() {
+                      updateSuccessorList(successor)
+                    }, 1)
+                  }
+                })
+            })(self.node.successor)
+          }, function(err) {
+            if (err.message === CANNOT_CONNECT_TO_PEER) {
+              // TODO: what do we do?
+            } else {
+              throw err
+            }
           }).done()
       })
     }
@@ -341,7 +393,7 @@
           // this point on, the system will work exactly as
           // described in the Chord paper.
           if (self.node.successor.id === self.node.id) {
-            self.node.successor = peer
+            self.node.successor = self.successorList[0] = peer
           }
         }
       })
@@ -444,8 +496,9 @@
         deferred.resolve(value)
       }, function(err) {
         // Try again
+        console.log(err)
         setTimeout(function() {
-          this.get(key).then(function(value) {
+          self.get(key).then(function(value) {
             deferred.resolve(value)
           })
         }, 1)
