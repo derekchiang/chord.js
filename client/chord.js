@@ -52,6 +52,17 @@
       })
   }
 
+  // Return if c is in between a and b clock-wise-ly, assuming
+  // they are arranged in a circle
+  function isInBetween(a, b, c) {
+    if (a > b) {
+      return ((a > c) && (c > b))
+    } else {
+      return ((((a + MAX) > c) && (c > b)) ||
+              (((a + MAX) > (c + MAX)) && ((c + MAX) > b)))
+    }
+  }
+
   function hashFunc(data) {
     // Get the first 13 digits of hex -- equivalent to getting a 52-bit binary
     return parseInt(CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex).substring(0, 13), 16)
@@ -68,6 +79,8 @@
       if (!(this instanceof RPC)) return new RPC()
 
       var self = this
+      this.id = id
+      this.chord = chord
 
       var peer = new Peer(id, {
         host: 'localhost',
@@ -139,13 +152,13 @@
               // Call the corresponding function
               log('invoking function: ' + data.func)
               log('with args: ' + JSON.stringify(data.args))
-              chord[data.func].apply(chord, data.args).then(function(res) {
+              self.chord[data.func].apply(self.chord, data.args).then(function(res) {
                 // When a result is available, set it back
                 if (res) log('sending back data: ' + res.toString())
                 conn.send({
                   type: 'return',
                   func: data.func,
-                  orig: chord.node,
+                  orig: self.chord.node,
                   data: res,
                   signature: data.signature
                 })
@@ -170,6 +183,13 @@
 
       // Get the actual arguments that will be passed to `func`
       var args = [].slice.call(arguments, 2)
+
+      // Invoke the function locally if the given node is the local node
+      // TODO: figure out why this pice of code is causing weird errors
+      // if (node.id === self.id) {
+      //   console.log('invoking my own function')
+      //   return self.chord[func].apply(self.chord, args)
+      // }
 
       // Initialize connection
       log('connecting to: ' + node.id.toString())
@@ -287,6 +307,8 @@
         })
       }
 
+      log('my hash is' + new String(self.node.hash))
+
       var joinInterval = setInterval(function() {
         // In theory, `join` should be called only once.  However, it's
         // possible that when the first `join` is called, the RPC client
@@ -340,8 +362,10 @@
       return Q.fcall(function() {
         self.rpc.invoke(self.node.successor, 'getPredecessor')
           .then(function(predecessor) {
-            if ((!isNull(predecessor)) && ((predecessor.hash > self.node.hash)
-              && (predecessor.hash < self.node.successor.hash))) {
+            if ((!isNull(predecessor)) &&
+              isInBetween(self.node.successor.hash, self.node.hash,
+                          predecessor.hash)) {
+              log('BP4')
               self.node.successor = self.successorList[0] = predecessor
             }
             self.rpc.invoke(self.node.successor, 'notify', self.node)
@@ -352,8 +376,11 @@
               self.rpc.invoke(successor, 'findSuccessor',
                               ((successor.hash + 1) % MAX))
                 .then(function(ss) {
+                  log('BP2')
                   self.successorList[++i] = ss
-                  if (i >= REPLICATION_FACTOR) {
+                  // End the loop if either we've updated all successors
+                  // or we've looped back to ourselves
+                  if ((i >= REPLICATION_FACTOR) || (ss.id === self.node.id)) {
                     return
                   } else {
                     updateSuccessorList(ss)
@@ -363,11 +390,12 @@
                     // Try again.  Assuming the successor has stablized,
                     // it should be able to find a live successor of the
                     // given hash
+                    log('BP1')
                     setTimeout(function() {
                       updateSuccessorList(successor)
                     }, 1)
                   }
-                })
+                }).done()
             })(self.node.successor)
           }, function(err) {
             if (err.message === CANNOT_CONNECT_TO_PEER) {
@@ -383,8 +411,8 @@
       var self = this
       return Q.fcall(function() {
         if ((self.node.predecessor === null) ||
-          ((peer.hash > self.node.predecessor.hash) &&
-            (peer.hash < self.node.hash))) {
+          (isInBetween(self.node.hash, self.node.predecessor.hash, peer.hash))) {
+          log('BP3')
           self.node.predecessor = peer
 
           // When the original node starts itself it sets its
@@ -426,7 +454,7 @@
       // when there is only one node in the whole network; reconsider plz
       var n = self.node;
       (function findPredecessorLooper() {
-        if ((hash <= n.hash) || (hash > n.successor.hash)) {
+        if (!(isInBetween(n.successor.hash, (n.hash - 1), hash))) {
           if (n.id == self.node.id) {
             // If it's self, just call it's own method
             self.closestPrecedingFinger(hash).then(function(res) {
@@ -461,7 +489,7 @@
       return Q.fcall(function() {
         for (var i = NUM_BITS - 1; i >= 0; i--) {
           var fingerHash = self.finger[i].node.hash
-          if ((fingerHash > self.node.hash) && (fingerHash < hash))
+          if (isInBetween(hash, self.node.hash, fingerHash))
             return self.finger[i].node
         }
         return self.node
